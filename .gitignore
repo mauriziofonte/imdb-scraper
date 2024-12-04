@@ -1,0 +1,7 @@
+vendor/*
+build/*
+cache/*
+.phpunit.result.cache
+.phpunit.guzzle.log
+test.php
+src/Stale.php
