@@ -234,7 +234,7 @@ class Parser
             }
         }
 
-        return $this->getMetadataProp('name');
+        return $this->getMetadataProp('name') ?? '';
     }
 
     /**
@@ -341,7 +341,7 @@ class Parser
             }
         }
 
-        return $this->getMetadataProp('aggregateRating.ratingValue');
+        return $this->getMetadataProp('aggregateRating.ratingValue') ?? null;
     }
 
     /**
@@ -366,7 +366,7 @@ class Parser
             }
         }
 
-        return $this->getMetadataProp('aggregateRating.ratingCount');
+        return $this->getMetadataProp('aggregateRating.ratingCount') ?? null;
     }
 
     /**
@@ -464,7 +464,7 @@ class Parser
             }
         }
 
-        return $this->getMetadataProp('image');
+        return $this->getMetadataProp('image') ?? null;
     }
 
     /**
@@ -489,7 +489,7 @@ class Parser
             }
         }
 
-        return $this->getMetadataProp('trailer.url');
+        return $this->getMetadataProp('trailer.url') ?? null;
     }
 
     /**
@@ -513,7 +513,7 @@ class Parser
             }
         }
 
-        return $this->getMetadataProp('description');
+        return $this->getMetadataProp('description') ?? '';
     }
 
     /**
@@ -559,7 +559,7 @@ class Parser
         }
 
         $cast = $this->getMetadataProp('actor.*.name');
-        if (count($cast) > 0) {
+        if (is_array($cast) && count($cast) > 0) {
             return array_map(function ($actor) {
                 return [
                     'type' => Person::TYPE_ACTOR,
@@ -742,7 +742,9 @@ class Parser
         $metadata = ($currMetadata) ? $currMetadata : $this->properties['metadata'] ?? [];
 
         foreach ($keys as $i => $key) {
-            if (is_array($metadata) && array_key_exists($key, $metadata)) {
+            if (is_array($metadata) && !array_key_exists($key, $metadata)) {
+                $metadata = [];
+            } else if (is_array($metadata) && array_key_exists($key, $metadata)) {
                 $metadata = $metadata[$key];
             } elseif (is_array($metadata) && $key === '*') {
                 $innerKeys = array_slice($keys, $i + 1);
@@ -750,6 +752,10 @@ class Parser
                     return $this->getMetadataProp(implode('.', $innerKeys), $item);
                 }, $metadata);
             }
+        }
+
+        if (empty($metadata)) {
+            return null;
         }
 
         return $metadata;
