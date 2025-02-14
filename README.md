@@ -29,23 +29,29 @@ Mfonte IMDb Scraper is a lightweight, object-oriented library to interact with I
 
 Key features include:
 
-- Localized searches using the `locale` option.
-- Built-in caching for optimized performance.
-- Seamless integration with your PHP project.
-- Works from **PHP 7.3** onwards.
-- PHP Unit tests included, carefully checked and passing on PHP 7.3, 7.4, 8.0, 8.1, 8.2 and 8.3.
+- **Localized searches** using the `locale` option.
+- Built-in **caching** for optimized performance.
+- `v2` tag works from **PHP 8.1** onwards. `v1` tag Works from **PHP 7.3** onwards.
 
 - - -
 
 ## Installation
 
+Release tag `v1` is compatible with PHP versions `7.3`, `7.4` and `8.0` (monolog `^2.0`).
+
 Install the package via Composer:
 
 ```bash
-composer require mfonte/imdb-scraper
+composer require mfonte/imdb-scraper "^1.0"
 ```
 
-Minimum PHP version required: **7.3**. All upward versions are supported.
+Release tag `v2` is compatible with PHP versions `8.1`, `8.2`, `8.3`, `8.4` (monolog `^3.0`).
+
+Install the package via Composer:
+
+```bash
+composer require mfonte/imdb-scraper "^2.0"
+```
 
 - - -
 

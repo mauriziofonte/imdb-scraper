@@ -3,5 +3,6 @@ build/*
 cache/*
 .phpunit.result.cache
 .phpunit.guzzle.log
+.phpunit.test.log
 test.php
 src/Stale.php

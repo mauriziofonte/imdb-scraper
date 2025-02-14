@@ -10,6 +10,7 @@ use GuzzleHttp\MessageFormatter;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Request;
 use Monolog\Logger;
+use Monolog\Level;
 use Monolog\Handler\StreamHandler;
 
 /**
@@ -188,7 +189,7 @@ class Dom
 
             // Create a Monolog logger instance
             $logger = new Logger('http_logger');
-            $logger->pushHandler(new StreamHandler($options['guzzleLogFile'], Logger::DEBUG));
+            $logger->pushHandler(new StreamHandler($options['guzzleLogFile'], Level::Debug));
 
             // Set up Guzzle handler stack with logging middleware
             $stack = HandlerStack::create();
@@ -207,11 +208,22 @@ class Dom
         // Load the URL with the custom client and request
         $response = $client->sendRequest($request);
 
-        // throw an exception if the request was an error (forbidden, server error, etc)
-        if ($response->getStatusCode() >= 400) {
-            throw new \Exception("Mfonte\ImdbScraper\Dom::fetch: Request to {$url} returned status code {$response->getStatusCode()}");
-        } elseif ($response->getStatusCode() === 200) {
+        // handle the response
+        if ($response->getStatusCode() === 200) {
+            // all OK
             $content = (string) $response->getBody();
+        } elseif (in_array($response->getStatusCode(), [301, 302, 307, 308])) {
+            // handle redirects
+            $location = $response->getHeader('Location');
+            if (!array_key_exists(0, $location)) {
+                throw new \Exception("Mfonte\ImdbScraper\Dom::fetch: Request to {$url} returned a redirect without a location header");
+            }
+
+            $url = 'https://www.imdb.com/' . ltrim($location[0], '/');
+            $content = $this->getRemoteContent($url, $options);
+        } elseif ($response->getStatusCode() >= 400) {
+            // handle errors
+            throw new \Exception("Mfonte\ImdbScraper\Dom::fetch: Request to {$url} returned status code {$response->getStatusCode()}");
         } else {
             // fallback with an empty DOM representation
             $content = self::$emptyHtml;

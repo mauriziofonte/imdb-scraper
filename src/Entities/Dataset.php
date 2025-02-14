@@ -337,7 +337,7 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
 
     /**
      * Converts the collection to a string (only values, flattened)
-     * 
+     *
      * @return string
      */
     public function toString() : string
@@ -351,7 +351,7 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
 
                 if (is_array($value)) {
                     $stringValue = implode(', ', array_values(array_filter($value, 'is_scalar')));
-                } else if(is_scalar($value)) {
+                } elseif (is_scalar($value)) {
                     $stringValue = (string)$value;
                 } else {
                     $stringValue = gettype($value);
@@ -433,7 +433,7 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
      *
      * @return mixed
      */
-    public function jsonSerialize()
+    public function jsonSerialize() : mixed
     {
         return $this->toArray();
     }
@@ -455,7 +455,7 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
      * @param mixed $offset
      * @return mixed
      */
-    public function offsetGet($offset)
+    public function offsetGet($offset) : mixed
     {
         return $this->get($offset);
     }

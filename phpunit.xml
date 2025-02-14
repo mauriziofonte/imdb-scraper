@@ -1,5 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" backupGlobals="false" backupStaticAttributes="false" bootstrap="phpunit.php" colors="true" convertDeprecationsToExceptions="true" convertErrorsToExceptions="true" convertNoticesToExceptions="false" convertWarningsToExceptions="false" failOnIncomplete="false" failOnSkipped="false" failOnRisky="false" stopOnFailure="false"  verbose="false" processIsolation="false" cacheResult="true" cacheResultFile=".phpunit.result.cache" xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.3/phpunit.xsd">
+<phpunit 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+  xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.3/phpunit.xsd"
+  displayDetailsOnTestsThatTriggerDeprecations="true"
+  displayDetailsOnTestsThatTriggerErrors="true"
+  displayDetailsOnTestsThatTriggerNotices="true"
+  displayDetailsOnTestsThatTriggerWarnings="true"
+  displayDetailsOnPhpunitDeprecations="true"
+  backupGlobals="false" 
+  bootstrap="phpunit.php" 
+  colors="true" 
+  failOnIncomplete="false" 
+  failOnSkipped="false" 
+  failOnRisky="false" 
+  stopOnFailure="false"
+  processIsolation="false" 
+  cacheResult="true" 
+  cacheResultFile=".phpunit.result.cache">
   <coverage includeUncoveredFiles="false">
     <include>
       <directory suffix=".php">src</directory>
