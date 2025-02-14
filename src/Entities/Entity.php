@@ -121,4 +121,28 @@ abstract class Entity implements JsonSerializable, Serializable
             }
         }
     }
+
+    /**
+     * Magic method to serialize the entity for PHP 8+ compatibility.
+     *
+     * @return array
+     */
+    public function __serialize(): array
+    {
+        return $this->toArray();
+    }
+
+    /**
+     * Magic method to unserialize the entity for PHP 8+ compatibility.
+     *
+     * @param array $data
+     */
+    public function __unserialize(array $data): void
+    {
+        foreach ($data as $key => $value) {
+            if (property_exists($this, $key)) {
+                $this->{$key} = $value;
+            }
+        }
+    }
 }
