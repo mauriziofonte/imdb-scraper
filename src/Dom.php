@@ -8,7 +8,6 @@ use GuzzleHttp\Client;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\MessageFormatter;
 use GuzzleHttp\Middleware;
-use GuzzleHttp\Psr7\Request;
 use Monolog\Logger;
 use Monolog\Level;
 use Monolog\Handler\StreamHandler;
@@ -203,10 +202,9 @@ class Dom
         }
 
         // Add custom headers to the request
-        $request = new Request('GET', $url, $this->createGuzzleHeaders($options));
-
-        // Load the URL with the custom client and request
-        $response = $client->sendRequest($request);
+        $response = $client->request('GET', $url, [
+            'headers' => $this->createGuzzleHeaders($options),
+        ]);
 
         // handle the response
         if ($response->getStatusCode() === 200) {
