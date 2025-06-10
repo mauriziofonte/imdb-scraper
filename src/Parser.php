@@ -624,52 +624,73 @@ class Parser
             return [];
         }
 
+        // Cast, Secondary Directors, Music
         foreach ($creditSections as $creditSection) {
             $creditCategory = $creditSection->findOneOrFalse('h3 span');
             if (!$creditCategory) {
                 continue;
             }
             $creditCategory = strtolower($creditCategory->innerText());
+            if (in_array($creditCategory, ['contribute to this page', 'more from this title'])) {
+                continue;
+            }
             $creditsByCategory[$creditCategory] = [];
 
             $creditEntries = $creditSection->findMultiOrFalse('li.ipc-metadata-list-summary-item');
             if (!$creditEntries) {
                 continue;
             }
+            // Each Secondary Director
             foreach($creditEntries as $creditEntry) {
-                $creditEntry = $creditEntry->findOneOrFalse('div')?->findOneOrFalse('div')?->findOneOrFalse('div');
-                if(!$creditEntry ) {
+
+                // Image
+                $creditedPersonImage = $creditEntry->findOneOrFalse('img');
+                $creditedPersonImage = $creditedPersonImage ? $creditedPersonImage->getAttribute('src') : null;
+
+                // Name
+                $creditedPerson = $creditEntry->findOneOrFalse('a.name-credits--title-text-big');
+                if (!$creditedPerson) {
                     continue;
                 }
-
-                $creditedPersonImage = $creditEntry->findOneOrFalse('img');
-                $creditedPersonImage = $creditedPersonImage ? self::absolutizeUrl($creditedPersonImage) : null;
-
-                $creditedPersonName = $creditEntry->findOneOrFalse('a')->innerText();
+                $creditedPersonName = $creditedPerson->innerText();
                 $creditedPersonLink = self::clean(
-                    self::absolutizeUrl(
-                        $creditEntry->findOneOrFalse('a')->getAttribute('href')
-                    )
+                    self::absolutizeUrl($creditedPerson->getAttribute('href'))
                 );
                 if (preg_match('/\/name\/(nm\d+)/', $creditedPersonLink, $matches)) {
                     $creditedPersonId = $matches[1];
                 } else {
                     $creditedPersonId = null;
                 }
-                if(!$creditedPersonName || !$creditedPersonLink) {
-                    continue;
-                }
 
-                if(!$creditedFor) {
-                    $creditedFor = $creditCategory;
+
+                // First, try finding as a character
+                $character = null;
+                $creditEntryHtml = $creditEntry->innerHtml();
+                $creditedFor = null;
+                if(preg_match('~(\/title\/.*?\/characters\/(.*?)\/).*?>(.*?)<~', $creditEntryHtml, $matches)) {
+                    $creditedFor = 'character';
+                    $character = [
+                        'id' => $matches[2],
+                        'name' => $matches[3],
+                        'link' => self::absolutizeUrl($matches[1])
+                    ];
+                } else if (preg_match('~<div class=".*?"><span>(.*?)<~', $creditEntryHtml, $matches)) {
+                    // If the user is not a character, try to find if they were credited on the crew
+                    $creditedFor  = $matches[1];
                 }
-                $creditsByCategory[$creditCategory][] = [
-                    'type' => $creditedFor,
+                $credit = [
+                    'category' => $creditCategory,
+                    'for' => $creditedFor,
+                    'id' => $creditedPersonId,
                     'name' => $creditedPersonName,
                     'link' => $creditedPersonLink,
                     'image' => $creditedPersonImage,
-                    'id' => $creditedPersonId
+                    'character' => $character,
                 ];
+                if ($character) {
+                    $credit['character'] = $character;
+                }
+                $creditsByCategory[$creditCategory][] = $credit;
             }
         }
         return $creditsByCategory;
