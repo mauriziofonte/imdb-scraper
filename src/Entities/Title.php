@@ -104,6 +104,11 @@ class Title extends Entity
     public $seasons = [];
 
     /**
+     * @var Dataset List of credits
+     */
+    public $credits = [];
+
+    /**
      * @var array Raw metadata
      */
     public $metadata = [];

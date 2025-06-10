@@ -11,6 +11,7 @@ class Person extends Entity
     public const TYPE_DIRECTOR = 'director';
     public const TYPE_WRITER = 'writer';
     public const TYPE_PRODUCER = 'producer';
+    public const TYPE_MISC = 'misc';
 
     /**
      * @var string The type of the Person (e.g., "actor", "director")
