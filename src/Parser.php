@@ -46,6 +46,7 @@ class Parser
         'similars' => [],
         'seasonRefs' => [],
         'seasons' => [],
+        'credits' => [],
     ];
 
     /**
@@ -84,6 +85,7 @@ class Parser
         $dom = new Dom;
 
         $page = $dom->fetch("/title/{$this->id}/", $this->options);
+        $pageCredits = $dom->fetch("/title/{$this->id}/fullcredits", $this->options);
 
         // set the properties
         $this->properties['id'] = $this->id;
@@ -105,6 +107,7 @@ class Parser
         $this->properties['actors'] = $this->getActors($page);
         $this->properties['similars'] = $this->getSimilars($page);
         $this->properties['seasonRefs'] = $this->getSeasonNumbers($page);
+        $this->properties['credits'] = $this->getCredits($pageCredits);
 
         // if it's a series, and "seasons" options is true, then fetch the episodes for each season
         if (
@@ -145,7 +148,7 @@ class Parser
 
     /**
      * Gets a Title instance from the properties
-     * 
+     *
      * @return Title
      */
     public function toTitle() : Title
@@ -155,9 +158,9 @@ class Parser
 
     /**
      * Gets the permalink of the movie or TV show, by parsing the <meta property="og:url" content="..." />
-     * 
+     *
      * @param HtmlDomParser $dom
-     * 
+     *
      * @return string
      */
     public function getPermalink(HtmlDomParser $dom) : string
@@ -205,7 +208,7 @@ class Parser
             $listItems = $infoContainer->find('li');
             foreach ($listItems as $item) {
                 $text = self::clean($item->innerText());
-                
+
                 // if the text is "TV Series" or "Serie TV", then it's a series
                 if (preg_match('/(TV Series|Serie TV)/i', $text, $matches)) {
                     return true;
@@ -280,7 +283,7 @@ class Parser
             $listItems = $infoContainer->find('li');
             foreach ($listItems as $item) {
                 $text = self::clean($item->innerText());
-                
+
                 if (preg_match('/([0-9]{4})(\s*[–\-]\s*([0-9]{4}))?/ui', $text, $matches)) {
                     return (int) $matches[1];
                 }
@@ -539,7 +542,7 @@ class Parser
                     $actor = $actorElement ? self::clean($actorElement->innerText()) : null;
                     $link = $actorElement ? self::absolutizeUrl($actorElement->getAttribute('href')) : null;
                     $character = $characterElement ? self::clean($characterElement->innerText()) : null;
-                    
+
                     $id = null;
                     if ($link && preg_match('/\/name\/(nm[0-9]{7,8})\//', $link, $matches)) {
                         $id = $matches[1];
@@ -611,6 +614,65 @@ class Parser
         }
 
         return [];
+    }
+
+    public function getCredits(HtmlDomParser $dom) : array
+    {
+        $creditSections = $dom->findMultiOrFalse('.ipc-page-section.ipc-page-section--base');
+        $creditsByCategory = [];
+        if (!$creditSections) {
+            return [];
+        }
+
+        foreach ($creditSections as $creditSection) {
+            $creditCategory = $creditSection->findOneOrFalse('h3 span');
+            if (!$creditCategory) {
+                continue;
+            }
+            $creditCategory = strtolower($creditCategory->innerText());
+            $creditsByCategory[$creditCategory] = [];
+
+            $creditEntries = $creditSection->findMultiOrFalse('li.ipc-metadata-list-summary-item');
+            if (!$creditEntries) {
+                continue;
+            }
+            foreach($creditEntries as $creditEntry) {
+                $creditEntry = $creditEntry->findOneOrFalse('div')?->findOneOrFalse('div')?->findOneOrFalse('div');
+                if(!$creditEntry ) {
+                    continue;
+                }
+
+                $creditedPersonImage = $creditEntry->findOneOrFalse('img');
+                $creditedPersonImage = $creditedPersonImage ? self::absolutizeUrl($creditedPersonImage) : null;
+
+                $creditedPersonName = $creditEntry->findOneOrFalse('a')->innerText();
+                $creditedPersonLink = self::clean(
+                    self::absolutizeUrl(
+                        $creditEntry->findOneOrFalse('a')->getAttribute('href')
+                    )
+                );
+                if (preg_match('/\/name\/(nm\d+)/', $creditedPersonLink, $matches)) {
+                    $creditedPersonId = $matches[1];
+                } else {
+                    $creditedPersonId = null;
+                }
+                if(!$creditedPersonName || !$creditedPersonLink) {
+                    continue;
+                }
+
+                if(!$creditedFor) {
+                    $creditedFor = $creditCategory;
+                }
+                $creditsByCategory[$creditCategory][] = [
+                    'type' => $creditedFor,
+                    'name' => $creditedPersonName,
+                    'link' => $creditedPersonLink,
+                    'image' => $creditedPersonImage,
+                    'id' => $creditedPersonId
+                ];
+            }
+        }
+        return $creditsByCategory;
     }
 
     /**
@@ -897,7 +959,7 @@ class Parser
             'EEE, dd \'de\' MMM \'de\' yyyy', // seg., 22 de set. de 2014
             'EEE, dd MMM yyyy',         // dom, 21 set 2014
         ];
-    
+
         foreach ($patterns as $pattern) {
             $formatter = new \IntlDateFormatter(
                 'en_US', // Neutral locale, it works for various inputs
@@ -907,7 +969,7 @@ class Parser
                 \IntlDateFormatter::GREGORIAN,
                 $pattern
             );
-    
+
             $timestamp = $formatter->parse($date);
             if ($timestamp !== false) {
                 return (new \DateTime())->setTimestamp($timestamp)->format('Y-m-d');
