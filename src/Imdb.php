@@ -36,7 +36,8 @@ class Imdb
      * @param array $options
      * @return Imdb
      */
-    public static function new(array $options = []) {
+    public static function new(array $options = [])
+    {
         return new self($options);
     }
 
@@ -56,9 +57,9 @@ class Imdb
 
     /**
      * Gets a Movie data from IMDB, by best effort
-     * 
+     *
      * @param string $title
-     * 
+     *
      * @return Title
      */
     public function movie(string $title): Title
@@ -72,7 +73,7 @@ class Imdb
      *
      * @param string $title
      * @param int $year
-     * 
+     *
      * @return Title
      */
     public function movieByYear(string $title, int $year): Title
@@ -83,9 +84,9 @@ class Imdb
 
     /**
      * Gets a TV Show data from IMDB, by best effort
-     * 
+     *
      * @param string $title
-     * 
+     *
      * @return Title
      */
     public function tvSeries(string $title): Title
@@ -99,7 +100,7 @@ class Imdb
      *
      * @param string $title
      * @param int $year
-     * 
+     *
      * @return Title
      */
     public function tvSeriesByYear(string $title, int $year): Title
@@ -113,7 +114,7 @@ class Imdb
      * Both compatible with titles (search keyword) and film ids in the form of 'tt1234567'.
      *
      * @param string $imdbId - The IMDB ID of the movie or TV show (e.g., 'tt1234567')
-     * 
+     *
      * @return Title
      */
     public function id(string $imdbId) : Title
@@ -143,9 +144,9 @@ class Imdb
 
     /**
      * Searches IMDB for films, people and companies
-     * 
+     *
      * @param string $keyword
-     * 
+     *
      * @return Dataset<SearchResult>
      */
     public function search(string $search): Dataset
@@ -178,15 +179,16 @@ class Imdb
 
     /**
      * Narrows the search to a specific category (movie or tvSeries), and optionally a year
-     * 
+     *
      * @param string $keyword
      * @param string $category
      * @param bool $forceFirstResult
      * @param int|null $year
-     * 
+     *
      * @return string
      */
-    private function narrow(string $keyword, string $category, bool $forceFirstResult = false, ?int $year = null) : string {
+    private function narrow(string $keyword, string $category, bool $forceFirstResult = false, ?int $year = null) : string
+    {
         if (!in_array($category, ['movie', 'tvSeries'])) {
             throw new BadMethodCall("Mfonte\ImdbScraper\Imdb::narrow() - Invalid category: {$category}");
         }
@@ -213,8 +215,7 @@ class Imdb
             $results = $results->filter(function ($result) use ($year) {
                 return $result->year === $year || $result->year === $year - 1 || $result->year === $year + 1;
             });
-        }
-        else {
+        } else {
             // calculate the levenshtein distance between the search term and the title of the results
             $distances = [];
             foreach ($results as $result) {
@@ -233,7 +234,7 @@ class Imdb
 
             // if the likelihood is less than 75, return null (5 chars wrong)
             if ($likelihood < 75) {
-                return null;
+                throw new NoSearchResults($keyword);
             }
 
             // filter the results to only the one that matches the firstMatch
@@ -269,6 +270,7 @@ class Imdb
             'cache'         => false,
             'locale'        => 'en',
             'seasons'       => false,
+            'credits'       => false,
             'guzzleLogFile' => null
         ];
 

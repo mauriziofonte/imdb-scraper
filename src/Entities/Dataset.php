@@ -13,7 +13,8 @@ use InvalidArgumentException;
 /**
  * Class Dataset
  *
- * A lightweight collection implementation that provides basic collection functionalities.
+ * A lightweight collection implementation that provides basic collection functionalities,
+ * with support for recursive operations on nested Dataset instances.
  */
 class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializable
 {
@@ -27,10 +28,10 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
     /**
      * Static constructor for creating a new instance of the collection.
      *
-     * @param array|\Traversable $items
+     * @param array|Traversable $items
      * @return Dataset
      */
-    public static function new($items = []) : Dataset
+    public static function new($items = [])
     {
         return new self($items);
     }
@@ -38,7 +39,7 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
     /**
      * Dataset constructor.
      *
-     * @param array|\Traversable $items
+     * @param array|Traversable $items
      * @throws InvalidArgumentException
      */
     public function __construct($items = [])
@@ -48,137 +49,154 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
         } elseif ($items instanceof Traversable) {
             $this->items = iterator_to_array($items);
         } else {
-            throw new InvalidArgumentException("Mfonte\ImdbScraper\Entities\Dataset::__construct(): Items must be an array or Traversable");
+            throw new InvalidArgumentException("Dataset::__construct(): Items must be an array or Traversable");
         }
     }
 
     /**
-     * Runs a callback on each item in the collection.
+     * Runs a callback on each item in the collection, recursively on nested Datasets.
      *
      * @param callable $callback ($value, $key)
-     *
-     * @return $this
+     * @return Dataset
      */
-    public function each(callable $callback) : self
+    public function each(callable $callback): self
     {
         foreach ($this->items as $key => $value) {
-            $callback($value, $key);
+            if ($value instanceof self) {
+                $value->each($callback);
+            } else {
+                $callback($value, $key);
+            }
         }
         return $this;
     }
 
     /**
-     * Filters the collection using a callback function.
+     * Filters the collection using a callback function, recursively on nested Datasets.
      *
      * @param callable|null $callback ($value, $key)
      * @return Dataset
      */
-    public function filter($callback = null) : Dataset
+    public function filter($callback = null): Dataset
     {
-        $items = array_filter(
-            $this->items,
-            $callback !== null ? $callback : function ($value) {
-                return (bool)$value;
-            },
-            ARRAY_FILTER_USE_BOTH
-        );
-        return new self($items);
+        $results = [];
+        foreach ($this->items as $key => $value) {
+            if ($value instanceof self) {
+                $filtered = $value->filter($callback);
+                if ($filtered->count() > 0) {
+                    $results[$key] = $filtered;
+                }
+            } else {
+                if ($callback !== null) {
+                    $keep = (bool) $callback($value, $key);
+                } else {
+                    $keep = (bool) $value;
+                }
+                if ($keep) {
+                    $results[$key] = $value;
+                }
+            }
+        }
+        return new self($results);
     }
 
     /**
-     * Removes specified keys from the collection.
+     * Removes specified keys from the collection (non-recursive).
      *
      * @param array $keys
      * @return Dataset
      */
-    public function except(array $keys) : Dataset
+    public function except(array $keys): Dataset
     {
-        $items = array_filter($this->items, function ($value, $key) use ($keys) {
-            return !in_array($key, $keys, true);
-        }, ARRAY_FILTER_USE_BOTH);
-
-        return new self($items);
+        $results = [];
+        foreach ($this->items as $k => $v) {
+            if (! in_array($k, $keys, true)) {
+                $results[$k] = $v;
+            }
+        }
+        return new self($results);
     }
 
     /**
-     * Determines if the collection contains the given value.
+     * Determines if the collection contains the given value, optionally by key, recursively.
      *
-     * @param mixed $value
+     * @param mixed       $value
      * @param string|null $key
      * @return bool
      */
-    public function contains($value, $key = null) : bool
+    public function contains($value, $key = null): bool
     {
-        foreach ($this->items as $itemKey => $item) {
-            if ($key !== null) {
-                if ($item instanceof self) {
-                    if ($item->contains($value, $key)) {
-                        return true;
-                    }
-                } elseif (is_array($item) && array_key_exists($key, $item) && $item[$key] === $value) {
-                    return true;
-                } elseif (is_object($item) && isset($item->$key) && $item->$key === $value) {
+        foreach ($this->items as $item) {
+            if ($item instanceof self) {
+                if ($item->contains($value, $key)) {
                     return true;
                 }
-            } elseif ($item === $value) {
-                return true;
+            } elseif ($key !== null) {
+                if (is_array($item) && array_key_exists($key, $item) && $item[$key] === $value) {
+                    return true;
+                }
+                if (is_object($item) && isset($item->$key) && $item->$key === $value) {
+                    return true;
+                }
+            } else {
+                if ($item === $value) {
+                    return true;
+                }
             }
         }
         return false;
     }
 
     /**
-     * Returns a slice of the collection, starting at the given index and up to the specified length.
+     * Returns a slice of the collection.
      *
-     * @param int $offset
+     * @param int      $offset
      * @param int|null $length
      * @return Dataset
      */
-    public function slice($offset, $length = null) : Dataset
+    public function slice($offset, $length = null): Dataset
     {
         $sliced = array_slice($this->items, $offset, $length, true);
         return new self($sliced);
     }
 
     /**
-     * Sorts the collection using the provided callbacks and options.
+     * Sorts the collection using callbacks (non-recursive).
      *
      * @param array $callbacks
-     * @param int $options
+     * @param int   $options
      * @return Dataset
      */
-    public function sortBy(array $callbacks, $options = SORT_REGULAR) : Dataset
+    public function sortBy(array $callbacks, $options = SORT_REGULAR): Dataset
     {
         $items = $this->items;
-
         usort($items, function ($a, $b) use ($callbacks, $options) {
-            foreach ($callbacks as $callback) {
-                $valueA = $callback($a);
-                $valueB = $callback($b);
+            foreach ($callbacks as $cb) {
+                $va = $cb($a);
+                $vb = $cb($b);
                 if ($options === SORT_NUMERIC) {
-                    $result = $valueA - $valueB;
+                    $res = $va - $vb;
                 } elseif ($options === SORT_STRING) {
-                    $result = strcmp((string)$valueA, (string)$valueB);
+                    $res = strcmp((string)$va, (string)$vb);
                 } else {
-                    $result = $valueA <=> $valueB;
+                    $res = $va <=> $vb;
                 }
-                if ($result !== 0) {
-                    return $result;
+                if ($res !== 0) {
+                    return $res;
                 }
             }
             return 0;
         });
-
         return new self($items);
     }
 
     /**
-     * Sorts the collection in ascending order.
+     * Sorts the collection ascending (non-recursive).
      *
      * @param int $options
      * @return Dataset
      */
-    public function sortAsc($options = SORT_REGULAR) : Dataset
+    public function sortAsc($options = SORT_REGULAR): Dataset
     {
         $items = $this->items;
         asort($items, $options);
@@ -186,12 +204,12 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
     }
 
     /**
-     * Sorts the collection in descending order.
+     * Sorts the collection descending (non-recursive).
      *
      * @param int $options
      * @return Dataset
      */
-    public function sortDesc($options = SORT_REGULAR) : Dataset
+    public function sortDesc($options = SORT_REGULAR): Dataset
     {
         $items = $this->items;
         arsort($items, $options);
@@ -209,15 +227,15 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
     }
 
     /**
-     * Returns the first item in the collection where the given key matches the given value.
+     * Returns the first item matching the given key/value, recursively.
      *
      * @param string $key
-     * @param mixed $value
+     * @param mixed  $value
      * @return mixed|null
      */
     public function firstWhere($key, $value)
     {
-        foreach ($this->items as $idx => $item) {
+        foreach ($this->items as $item) {
             if ($item instanceof self) {
                 $found = $item->firstWhere($key, $value);
                 if ($found !== null) {
@@ -225,7 +243,7 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
                 }
             } elseif (is_array($item) && array_key_exists($key, $item) && $item[$key] === $value) {
                 return $item;
-            } elseif (is_object($item) && isset($item->{$key}) && $item->{$key} === $value) {
+            } elseif (is_object($item) && isset($item->$key) && $item->$key === $value) {
                 return $item;
             }
         }
@@ -233,16 +251,40 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
     }
 
     /**
-     * Applies a callback to all items in the collection.
+     * Filters the collection by a specific property value, recursively.
+     *
+     * @param string $property
+     * @param mixed  $value
+     * @return Dataset
+     */
+    public function where($property, $value): Dataset
+    {
+        return $this->filter(function ($item) use ($property, $value) {
+            if (is_array($item) && array_key_exists($property, $item)) {
+                return $item[$property] === $value;
+            }
+            if (is_object($item) && isset($item->$property)) {
+                return $item->$property === $value;
+            }
+            return false;
+        });
+    }
+
+    /**
+     * Applies a callback to all items in the collection, recursively.
      *
      * @param callable $callback ($value, $key)
      * @return Dataset
      */
-    public function map(callable $callback) : Dataset
+    public function map(callable $callback): Dataset
     {
         $mapped = [];
         foreach ($this->items as $key => $value) {
-            $mapped[$key] = $callback($value, $key);
+            if ($value instanceof self) {
+                $mapped[$key] = $value->map($callback);
+            } else {
+                $mapped[$key] = $callback($value, $key);
+            }
         }
         return new self($mapped);
     }
@@ -250,11 +292,11 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
     /**
      * Reduces the collection to a single value using a callback function.
      *
-     * @param callable $callback ($carry, $item, $key)
+     * @param callable   $callback ($carry, $item, $key)
      * @param mixed|null $initial
-     * @return Dataset
+     * @return mixed
      */
-    public function reduce(callable $callback, $initial = null) : Dataset
+    public function reduce(callable $callback, $initial = null)
     {
         $carry = $initial;
         foreach ($this->items as $key => $value) {
@@ -264,12 +306,12 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
     }
 
     /**
-     * Checks if the given key exists in the collection.
+     * Checks if the given key exists in the collection (non-recursive).
      *
      * @param mixed $key
      * @return bool
      */
-    public function has($key) : bool
+    public function has($key): bool
     {
         return array_key_exists($key, $this->items);
     }
@@ -279,9 +321,9 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
      *
      * @param mixed $key
      * @param mixed $value
-     * @return $this
+     * @return Dataset
      */
-    public function put($key, $value) : self
+    public function put($key, $value): self
     {
         $this->items[$key] = $value;
         return $this;
@@ -290,13 +332,16 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
     /**
      * Gets an item from the collection by key, or returns the default value.
      *
-     * @param mixed $key
+     * @param mixed      $key
      * @param mixed|null $default
      * @return mixed
      */
     public function get($key, $default = null)
     {
-        return array_key_exists($key, $this->items) ? $this->items[$key] : $default;
+        if (array_key_exists($key, $this->items)) {
+            return $this->items[$key];
+        }
+        return $default;
     }
 
     /**
@@ -304,7 +349,7 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
      *
      * @return int
      */
-    public function count() : int
+    public function count(): int
     {
         return count($this->items);
     }
@@ -313,63 +358,119 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
      * Gets all the keys of the collection items.
      *
      * @param bool $unique - whether to return only unique keys
-     *
      * @return array
      */
-    public function keys($unique = false) : array
+    public function keys($unique = false): array
     {
         $keys = array_keys($this->items);
-        return $unique ? array_unique($keys) : $keys;
+        if ($unique) {
+            return array_unique($keys);
+        }
+        return $keys;
     }
 
     /**
      * Gets all the values of the collection items.
      *
      * @param bool $unique - whether to return only unique values
-     *
      * @return array
      */
-    public function values($unique = false) : array
+    public function values($unique = false): array
     {
         $values = array_values($this->items);
-        return $unique ? array_unique($values) : $values;
+        if ($unique) {
+            return array_unique($values);
+        }
+        return $values;
     }
 
     /**
-     * Converts the collection to a string (only values, flattened)
+     * Plucks the values of a given key from the collection items, recursively.
+     *
+     * @param string $key
+     * @return Dataset
+     */
+    public function pluck($key): Dataset
+    {
+        $results = [];
+        foreach ($this->items as $value) {
+            if ($value instanceof self) {
+                $nested = $value->pluck($key);
+                foreach ($nested->toArray() as $v) {
+                    $results[] = $v;
+                }
+            } elseif (is_array($value) && array_key_exists($key, $value)) {
+                $results[] = $value[$key];
+            } elseif (is_object($value) && isset($value->$key)) {
+                $results[] = $value->$key;
+            }
+        }
+        return new self($results);
+    }
+
+    /**
+     * Plucks unique values of a given key from the collection items, recursively.
+     *
+     * @param string $key
+     * @return Dataset
+     */
+    public function pluckUnique($key): Dataset
+    {
+        $results = [];
+        foreach ($this->items as $value) {
+            if ($value instanceof self) {
+                $nested = $value->pluckUnique($key);
+                foreach ($nested->toArray() as $v) {
+                    if (! in_array($v, $results, true)) {
+                        $results[] = $v;
+                    }
+                }
+            } elseif (is_array($value) && array_key_exists($key, $value)) {
+                $v = $value[$key];
+                if (! in_array($v, $results, true)) {
+                    $results[] = $v;
+                }
+            } elseif (is_object($value) && isset($value->$key)) {
+                $v = $value->$key;
+                if (! in_array($v, $results, true)) {
+                    $results[] = $v;
+                }
+            }
+        }
+        return new self($results);
+    }
+
+    /**
+     * Converts the collection to a string (flattened, recursively).
      *
      * @return string
      */
-    public function toString() : string
+    public function toString(): string
     {
         $string = '';
-        foreach ($this->items as $key => $value) {
+        foreach ($this->items as $value) {
             if ($value instanceof self) {
                 $string .= $value->toString();
             } else {
-                $stringValue = null;
-
                 if (is_array($value)) {
-                    $stringValue = implode(', ', array_values(array_filter($value, 'is_scalar')));
+                    $filtered = array_filter($value, 'is_scalar');
+                    $string .= implode(', ', array_values($filtered)) . ', ';
                 } elseif (is_scalar($value)) {
-                    $stringValue = (string)$value;
+                    $string .= (string) $value . ', ';
                 } else {
-                    $stringValue = gettype($value);
+                    $string .= gettype($value) . ', ';
                 }
-
-                $string .= $stringValue . ', ';
             }
         }
         return rtrim($string, ', ');
     }
 
-
     /**
-     * Converts the collection to an array.
+     * Converts the collection to an array (recursively).
      *
      * @return array
      */
-    public function toArray() : array
+    public function toArray(): array
     {
         $array = [];
         foreach ($this->items as $key => $value) {
@@ -387,7 +488,7 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
      *
      * @return string
      */
-    public function toJson() : string
+    public function toJson(): string
     {
         return json_encode($this->jsonSerialize());
     }
@@ -395,15 +496,14 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
     /**
      * Flattens a multi-dimensional array up to the given depth.
      *
-     * @param array|\Traversable $array
-     * @param int $depth
+     * @param array|Traversable $array
+     * @param int               $depth
      * @return array
      */
-    public static function flatten($array, $depth = INF) : array
+    public static function flatten($array, $depth = INF): array
     {
         $result = [];
-        $stack = [[$array, $depth]];
-
+        $stack  = [[$array, $depth]];
         while ($stack) {
             list($current, $currentDepth) = array_pop($stack);
             foreach ($current as $item) {
@@ -414,16 +514,15 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
                 }
             }
         }
-
         return $result;
     }
 
     /**
      * Gets an iterator for the items in the collection.
      *
-     * @return \Traversable
+     * @return Traversable
      */
-    public function getIterator() : Traversable
+    public function getIterator(): Traversable
     {
         return new ArrayIterator($this->items);
     }
@@ -444,7 +543,7 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
      * @param mixed $offset
      * @return bool
      */
-    public function offsetExists($offset) : bool
+    public function offsetExists($offset): bool
     {
         return $this->has($offset);
     }
@@ -465,11 +564,10 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
      *
      * @param mixed $offset
      * @param mixed $value
-     * @return void
      */
-    public function offsetSet($offset, $value) : void
+    public function offsetSet($offset, $value): void
     {
-        if (is_null($offset)) {
+        if ($offset === null) {
             $this->items[] = $value;
         } else {
             $this->put($offset, $value);
@@ -480,9 +578,8 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
      * Unsets the item at the given offset.
      *
      * @param mixed $offset
-     * @return void
      */
-    public function offsetUnset($offset) : void
+    public function offsetUnset($offset): void
     {
         unset($this->items[$offset]);
     }

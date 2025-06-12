@@ -5,7 +5,7 @@ A **PHP library** for scraping movie and TV show data from IMDb with ease. This 
 > [!CAUTION]
 > This package is intended for educational and personal use only. Users are responsible for ensuring their use complies with IMDb's Terms of Service and applicable laws. The author does not condone or encourage unauthorized scraping or other activities that violate legal agreements.
 > Please, refer to the [IMDb Conditions of Use](https://www.imdb.com/conditions?utm_source) for more information.
-> **It is your responsibility to use this package in compliance with IMDb's Terms of Service.**
+> **It is your sole responsibility to use this package in compliance with IMDb's Terms of Service.**
 
 ## List of supported locales
 
@@ -31,9 +31,29 @@ Key features include:
 
 - **Localized searches** using the `locale` option.
 - Built-in **caching** for optimized performance.
-- `v2` tag works from **PHP 8.1** onwards. `v1` tag Works from **PHP 7.3** onwards.
+- `v2` tag works from **PHP 8.1** onwards. `v1` tag Works from **PHP 7.3** to **PHP 8.0**.
 
 - - -
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Basic Example](#basic-example)
+  - [The `Title` Object](#the-title-object)
+  - [Options](#options)
+  - [Methods](#methods)
+    - [Best Match Overview](#best-match-overview)
+    - [By Year Overview](#by-year-overview)
+    - [Handling Exceptions](#handling-exceptions)
+    - [The `id()` Method](#the-id-method)
+    - [The `search()` Method](#the-search-method)
+- [Summary of Exceptions and Methods](#summary-of-exceptions-and-methods)
+- [Advanced Features](#advanced-features)
+  - [Caching](#caching)
+  - [Locale](#locale)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Installation
 
@@ -121,6 +141,7 @@ The `Title` object represents detailed information about a movie or TV show fetc
 | **`similars`** | `Dataset` | A dataset containing similar titles to the one fetched. (`Title` objects) |
 | **`seasonRefs`** | `array` | A list of season numbers for a TV series (e.g., `[1, 2, 3, 4]`). |
 | **`seasons`** | `Dataset` | A dataset containing detailed information about seasons for a TV series. (`Season` objects) |
+| **`credits`** | `Dataset` | A dataset containing all credits associated with the title, including directors, writers, and producers. (`Credit` objects) |
 | **`metadata`** | `array` | Raw metadata associated with the title. |
 
 - - -
@@ -134,6 +155,7 @@ The scraper provides various configuration options during initialization:
 | `cache` | `false` | Enables caching of results. |
 | `locale` | `en` | Sets the locale for searches (e.g., `it` for Italian). |
 | `seasons` | `false` | If `true`, fetches season data for TV shows. |
+| `credits` | `false` | If `true`, fetches detailed credits information. |
 | `guzzleLogFile` | `null` | File path for logging HTTP requests (useful for debugging). |
 
 ### Example: Setting Options
@@ -192,7 +214,7 @@ echo $movie->year;     // 1996
 
 - - -
 
-## Handling Exceptions in `movie()`, `tvSeries()`, `movieByYear()`, and `tvSeriesByYear()`
+## Handling Exceptions
 
 The methods `movie()`, `tvSeries()`, `movieByYear()`, and `tvSeriesByYear()` in the `Imdb` class throw exceptions when specific conditions are not met during the search:
 

@@ -62,19 +62,45 @@ abstract class Entity implements JsonSerializable, Serializable
             'similars' => 'Reference',
             'seasons' => 'Season',
             'episodes' => 'Episode',
+            'credits' => 'Credit'
         ];
 
         // if the property is a Dataset, cast the value to the appropriate entity
         if (isset($castMap[$property])) {
             $entity = "\\Mfonte\\ImdbScraper\\Entities\\{$castMap[$property]}";
             $dataset = new Dataset;
-            foreach ($value as $item) {
-                $dataset->put($item['id'], $entity::newFromArray($item));
+            foreach ($value as $key => $item) {
+                $index = (isset($item['id']) && $item['id']) ? $item['id'] : $key;
+                
+                // do $item attributes are all arrays? if so, we need to create a Dataset for them
+                $itemArraysCount = array_reduce($item, function ($carry, $value) {
+                    $add = (is_array($value) && !empty($value)) ? 1 : 0;
+                    return $carry + $add;
+                }, 0);
+
+                // if all attributes are arrays, we need to create a Dataset for them
+                if ($itemArraysCount === count($item)) {
+                    $subDataset = new Dataset;
+                    foreach ($item as $subKey => $subItem) {
+                        $subIndex = (isset($subItem['id']) && $subItem['id']) ? $subItem['id'] : $subKey;
+                        $subDataset->put($subIndex, $entity::newFromArray($subItem));
+                    }
+                    $dataset->put($index, $subDataset);
+                } else {
+                    $dataset->put($index, $entity::newFromArray($item));
+                }
             }
             $value = $dataset;
         }
 
-        $this->{$property} = $value;
+        // does the class have a setter method for this property?
+        $setterMethod = 'set' . ucfirst($property);
+        if (method_exists($this, $setterMethod)) {
+            $this->{$setterMethod}($value);
+            return;
+        } else {
+            $this->{$property} = $value;
+        }
     }
 
     /**

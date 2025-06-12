@@ -2,8 +2,8 @@
 namespace Mfonte\ImdbScraper\Entities;
 
 /**
- * Class Actor
- * Represents an actor.
+ * Class Person
+ * Represents a Person in the IMDb database, such as an actor, director, writer, or producer.
  */
 class Person extends Entity
 {
@@ -33,7 +33,7 @@ class Person extends Entity
     public $link;
 
     /**
-     * @var string The character played by the Person
+     * @var string|Person The character played by the Person
      */
     public $character;
 

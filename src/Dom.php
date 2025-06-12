@@ -21,7 +21,7 @@ use Monolog\Handler\StreamHandler;
 class Dom
 {
     private static $baseUrl = 'https://www.imdb.com/';
-    private static $defaultUserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0';
+    private static $defaultUserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:139.0) Gecko/20100101 Firefox/139.0';
     private static $iso6391AcceptLanguage = [
         'en' => 'en-US,en;q=0.9',                                // English
         'es' => 'es-ES,es;q=0.9,en-US;q=0.5,en;q=0.3',           // Spanish
@@ -142,16 +142,14 @@ class Dom
      */
     private function createUrl(string $uri, array $options)
     {
-        if (
-            stripos($uri, 'episodes/') === false &&
-            isset($options['locale']) &&
-            $options['locale'] === 'it'
-        ) {
-            // IMDB directly supports the Italian locale as a dedicated realm on titles (not on episodes)
-            return self::$baseUrl . 'it/' . ltrim($uri, '/');
+        // if the locale is "en", we don't need to add it to the URL
+        if (isset($options['locale']) && $options['locale'] === 'en') {
+            return self::$baseUrl . ltrim($uri, '/');
         }
 
-        return self::$baseUrl . ltrim($uri, '/');
+        // in any other case, remove the leading two-chars locale from the URL, and prepend it with the chosen locale
+        $uri = preg_replace('/^\/[a-z]{2}\//', '/', $uri);
+        return self::$baseUrl . $options['locale'] . '/' . ltrim($uri, '/');
     }
 
     /**

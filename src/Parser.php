@@ -85,7 +85,6 @@ class Parser
         $dom = new Dom;
 
         $page = $dom->fetch("/title/{$this->id}/", $this->options);
-        $pageCredits = $dom->fetch("/title/{$this->id}/fullcredits", $this->options);
 
         // set the properties
         $this->properties['id'] = $this->id;
@@ -107,7 +106,6 @@ class Parser
         $this->properties['actors'] = $this->getActors($page);
         $this->properties['similars'] = $this->getSimilars($page);
         $this->properties['seasonRefs'] = $this->getSeasonNumbers($page);
-        $this->properties['credits'] = $this->getCredits($pageCredits);
 
         // if it's a series, and "seasons" options is true, then fetch the episodes for each season
         if (
@@ -131,6 +129,12 @@ class Parser
                 }
             }
             $this->properties['seasons'] = $seasons;
+        }
+
+        // if the options tell us to fetch the credits, then do it
+        if (array_key_exists('credits', $this->options) && $this->options['credits']) {
+            $page = $dom->fetch("/title/{$this->id}/fullcredits", $this->options);
+            $this->properties['credits'] = $this->getCredits($page);
         }
 
         return $this;
@@ -364,7 +368,7 @@ class Parser
                 $votesContainer = $ratingContainer->parentNode()->find('div', -1);
                 if ($votesContainer) {
                     $text = self::clean($votesContainer->innerText());
-                    return self::parseCount($text);
+                    return self::normalizeToInt($text);
                 }
             }
         }
@@ -408,7 +412,7 @@ class Parser
                 $listItems = $listContainer->find('li');
                 foreach ($listItems as $item) {
                     $spans = $item->find('span.three-Elements span');
-                    if (count($spans) > 0) {
+                    if (count((array) $spans) > 0) {
                         foreach ($spans as $i => $span) {
                             $text = self::clean($span->innerText());
                             if (strtolower($text) === 'metascore') {
@@ -436,7 +440,7 @@ class Parser
         if ($heroContainer) {
             $interestsContainer = $heroContainer->findOneOrFalse('div[data-testid="interests"]');
             $genres = $interestsContainer->find('a.ipc-chip span');
-            if (count($genres) > 0) {
+            if (count((array) $genres) > 0) {
                 return array_map(function ($genre) {
                     return self::clean($genre->innerText());
                 }, (array) $genres);
@@ -531,7 +535,7 @@ class Parser
         $castContainer = self::getCastContainer($dom);
         if ($castContainer) {
             $castElements = $castContainer->find('div[data-testid="title-cast-item"]');
-            if (count($castElements) > 0) {
+            if (count((array) $castElements) > 0) {
                 $cast = [];
                 foreach ($castElements as $element) {
                     $imgElement = $element->findOneOrFalse('img');
@@ -590,7 +594,7 @@ class Parser
         $similarsContainer = $dom->findOneOrFalse('section.ipc-page-section[data-testid="MoreLikeThis"]');
         if ($similarsContainer) {
             $similarsElements = $similarsContainer->find('div.ipc-poster-card[role="group"]');
-            if (count($similarsElements) > 0) {
+            if (count((array) $similarsElements) > 0) {
                 $similars = [];
                 foreach ($similarsElements as $element) {
                     $linkElement = $element->findOneOrFalse('a.ipc-poster-card__title');
@@ -618,82 +622,111 @@ class Parser
 
     public function getCredits(HtmlDomParser $dom) : array
     {
-        $creditSections = $dom->findMultiOrFalse('.ipc-page-section.ipc-page-section--base');
-        $creditsByCategory = [];
-        if (!$creditSections) {
+        $sections = $dom->findMultiOrFalse('.ipc-page-section.ipc-page-section--base');
+        $credits = [];
+        if (!$sections) {
             return [];
         }
 
         // Cast, Secondary Directors, Music
-        foreach ($creditSections as $creditSection) {
-            $creditCategory = $creditSection->findOneOrFalse('h3 span');
-            if (!$creditCategory) {
+        foreach ($sections as $section) {
+            $collectionElement = $section->findOneOrFalse('h3 span');
+            if (!$collectionElement) {
+                // if there is no collection element, skip this section
                 continue;
             }
-            $creditCategory = strtolower($creditCategory->innerText());
-            if (in_array($creditCategory, ['contribute to this page', 'more from this title'])) {
-                continue;
-            }
-            $creditsByCategory[$creditCategory] = [];
+            
+            $role = self::clean($collectionElement->innerText());
+            $roleIndex = hash('crc32', $role);
 
-            $creditEntries = $creditSection->findMultiOrFalse('li.ipc-metadata-list-summary-item');
-            if (!$creditEntries) {
+            if (str_ireplace([
+                'contribute',
+                'title',
+                'contribuisci',
+                'titolo',
+                'contribuer',
+                'titre',
+                'beitragen',
+                'titel',
+                'contribua',
+                'título'
+            ], '', $role) !== $role) {
+                // If the category is a generic "contribute to this page" or "more from this title", skip it
                 continue;
             }
+            
+            // initialize segment array
+            if (!array_key_exists($roleIndex, $credits)) {
+                $credits[$roleIndex] = [];
+            }
+
+            $entries = $section->findMultiOrFalse('li.ipc-metadata-list-summary-item');
+            if (!$entries) {
+                // if there are no entries, skip this section
+                continue;
+            }
+
             // Each Secondary Director
-            foreach($creditEntries as $creditEntry) {
-
-                // Image
-                $creditedPersonImage = $creditEntry->findOneOrFalse('img');
-                $creditedPersonImage = $creditedPersonImage ? $creditedPersonImage->getAttribute('src') : null;
-
+            foreach ($entries as $entry) {
                 // Name
-                $creditedPerson = $creditEntry->findOneOrFalse('a.name-credits--title-text-big');
-                if (!$creditedPerson) {
+                $personElement = $entry->findOneOrFalse('a.name-credits--title-text-big');
+                if (!$personElement) {
+                    // if there is no person element, skip this entry
                     continue;
                 }
-                $creditedPersonName = $creditedPerson->innerText();
-                $creditedPersonLink = self::clean(
-                    self::absolutizeUrl($creditedPerson->getAttribute('href'))
-                );
-                if (preg_match('/\/name\/(nm\d+)/', $creditedPersonLink, $matches)) {
-                    $creditedPersonId = $matches[1];
-                } else {
-                    $creditedPersonId = null;
+
+                $name = self::clean($personElement->innerText());
+                $link = self::absolutizeUrl($personElement->getAttribute('href'));
+
+                $id = null;
+                if (preg_match('/\/name\/(nm\d+)/', $link, $matches)) {
+                    $id = $matches[1];
                 }
 
+                if (empty($id)) {
+                    // if the ID is empty, skip this entry
+                    continue;
+                }
 
-                // First, try finding as a character
+                // Image
+                $imageElement = $entry->findOneOrFalse('img');
+                $image = $imageElement ? $imageElement->getAttribute('src') : null;
+
+                // Parse the Person as a character by default
                 $character = null;
-                $creditEntryHtml = $creditEntry->innerHtml();
-                $creditedFor = null;
-                if(preg_match('~(\/title\/.*?\/characters\/(.*?)\/).*?>(.*?)<~', $creditEntryHtml, $matches)) {
-                    $creditedFor = 'character';
-                    $character = [
-                        'id' => $matches[2],
-                        'name' => $matches[3],
-                        'link' => self::absolutizeUrl($matches[1])
-                    ];
-                } else if (preg_match('~<div class=".*?"><span>(.*?)<~', $creditEntryHtml, $matches)) {
-                    // If the user is not a character, try to find if they were credited on the crew
-                    $creditedFor  = $matches[1];
+                $involvement = null;
+                $type = null;
+                $entryHtml = $entry->innerHtml();
+                if (preg_match('~(\/title\/.*?\/characters\/(.*?)\/).*?>(.*?)<~', $entryHtml, $matches)) {
+                    // If this Person is a character, assign the involvement as 'character' and swap the ID and link
+                    $involvement = 'character';
+                    $id = $matches[2];
+                    $type = Person::TYPE_ACTOR;
+                    $character = self::clean($matches[3]);
+                    $link = self::absolutizeUrl($matches[1]);
+                } elseif (preg_match('~<div class=".*?"><span>(.*?)<~', $entryHtml, $matches)) {
+                    // If this Person is not a character, then its involvement is inherited from the inner HTML itself
+                    $involvement  = $matches[1];
                 }
+
                 $credit = [
-                    'category' => $creditCategory,
-                    'for' => $creditedFor,
-                    'id' => $creditedPersonId,
-                    'name' => $creditedPersonName,
-                    'link' => $creditedPersonLink,
-                    'image' => $creditedPersonImage,
-                    'character' => $character,
+                    'role' => $role,
+                    'involvement' => $involvement,
+                    'person' => [
+                        'id' => $id,
+                        'type' => $type,
+                        'name' => $name,
+                        'link' => $link,
+                        'image' => $image,
+                        'character' => $character,
+                    ]
                 ];
-                if ($character) {
-                    $credit['character'] = $character;
-                }
-                $creditsByCategory[$creditCategory][] = $credit;
+                
+                $credits[$roleIndex][] = $credit;
             }
         }
-        return $creditsByCategory;
+
+        return $credits;
     }
 
     /**
@@ -713,7 +746,7 @@ class Parser
         $seasonsContainer = $dom->findOneOrFalse('div[data-testid="episodes-browse-episodes"]');
         if ($seasonsContainer) {
             $seasonsElements = $seasonsContainer->find('select#browse-episodes-season option');
-            if (count($seasonsElements) > 0) {
+            if (count((array) $seasonsElements) > 0) {
                 $seasons = array_values(array_filter(array_map(function ($element) {
                     $value = intval($element->getAttribute('value'));
                     return ($value > 0) ? $value : null;
@@ -726,10 +759,10 @@ class Parser
             } else {
                 // fallback searching <a> elements that match /title/tt[0-9]+/episodes?season=
                 $seasonsElements = $seasonsContainer->find('a');
-                if (count($seasonsElements) > 0) {
+                if (count((array) $seasonsElements) > 0) {
                     $seasons = array_values(array_filter(array_map(function ($element) {
                         $href = $element->getAttribute('href');
-                        if (preg_match('/\/title\/tt[0-9]+\/episodes\?season=([0-9]+)/', $href, $matches)) {
+                        if (preg_match('/\/title\/tt[0-9]+\/episodes\/?\?season=([0-9]+)/', $href, $matches)) {
                             return (int) $matches[1];
                         }
                         return null;
@@ -757,7 +790,7 @@ class Parser
     {
         $episodes = [];
         $episodeContainers = $dom->find('article.episode-item-wrapper');
-        if (count($episodeContainers) > 0) {
+        if (count((array) $episodeContainers) > 0) {
             foreach ($episodeContainers as $container) {
                 $imgElement = $container->findOneOrFalse('img.ipc-image');
                 $titleElement = $container->findOneOrFalse('h4[data-testid="slate-list-card-title"]');
@@ -769,10 +802,10 @@ class Parser
                 $img = $imgElement ? self::absolutizeUrl($imgElement->getAttribute('src')) : null;
                 $title = $titleElement ? self::clean($titleElement->innerText()) : null;
                 $link = $linkElement ? self::absolutizeUrl($linkElement->getAttribute('href')) : null;
-                $airDate = $airDateElement ? self::parseDate(self::clean($airDateElement->innerText())) : null;
+                $airDate = $airDateElement ? self::normalizeToDate(self::clean($airDateElement->innerText())) : null;
                 $plot = $plotElement ? self::clean($plotElement->innerText()) : null;
                 $rating = $ratingContainer ? self::clean($ratingContainer->findOne('span.ipc-rating-star--rating')->innerText()) : null;
-                $ratingVotes = $ratingContainer ? self::parseCount(self::clean($ratingContainer->findOne('span.ipc-rating-star--voteCount')->innerText())) : null;
+                $ratingVotes = $ratingContainer ? self::normalizeToInt(self::clean($ratingContainer->findOne('span.ipc-rating-star--voteCount')->innerText())) : null;
 
                 // match the season and episode number from the title (S8.E1 ∙ The Locomotion Interruption)
                 $seasonNumber = null;
@@ -803,7 +836,7 @@ class Parser
                     'episodeNumber' => $episodeNumber,
                     'airDate' => $airDate,
                     'plot' => $plot,
-                    'rating' => $rating,
+                    'rating' => (strpos($rating, ',') !== false) ? (float) str_replace(',', '.', $rating) : (float) $rating,
                     'ratingVotes' => $ratingVotes,
                 ];
             }
@@ -827,7 +860,7 @@ class Parser
         foreach ($keys as $i => $key) {
             if (is_array($metadata) && !array_key_exists($key, $metadata)) {
                 $metadata = [];
-            } else if (is_array($metadata) && array_key_exists($key, $metadata)) {
+            } elseif (is_array($metadata) && array_key_exists($key, $metadata)) {
                 $metadata = $metadata[$key];
             } elseif (is_array($metadata) && $key === '*') {
                 $innerKeys = array_slice($keys, $i + 1);
@@ -855,7 +888,7 @@ class Parser
     {
         $elements = $dom->find('section.ipc-page-section[data-testid="hero-parent"]');
 
-        if (count($elements) === 0) {
+        if (count((array) $elements) === 0) {
             return null;
         }
 
@@ -873,7 +906,7 @@ class Parser
     {
         $elements = $dom->find('section.ipc-page-section[data-testid="title-cast"]');
 
-        if (count($elements) === 0) {
+        if (count((array) $elements) === 0) {
             return null;
         }
 
@@ -940,13 +973,13 @@ class Parser
     }
 
     /**
-     * Parses a count string (e.g., "1.5M") and returns the integer value
+     * Parses a numeric string (e.g., "1.5M") and returns the integer value
      *
      * @param string $text
      *
      * @return int|null
      */
-    private static function parseCount(string $text) : ?int
+    private static function normalizeToInt(string $text) : ?int
     {
         // match any [m] or [mln] or [k] and convert them to millions or thousands
         if (preg_match('/([0-9,.]+)\s*(m|mln|k)?/i', $text, $matches)) {
@@ -972,7 +1005,7 @@ class Parser
      *
      * @return string|null
      */
-    private static function parseDate(string $date) : ?string
+    private static function normalizeToDate(string $date) : ?string
     {
         $patterns = [
             'EEE, MMM dd, yyyy',        // Mon, Sep 22, 2014
