@@ -162,6 +162,15 @@ class Dom
      */
     private function getRemoteContent(string $url, array $options) : string
     {
+        // early return from cache, if the cache is enabled
+        $cache = null;
+        if (isset($options['cache']) && $options['cache']) {
+            $cache = new Cache;
+            if ($cache->has($url)) {
+                return $cache->get($url);
+            }
+        }
+
         $clientOpts = [
             'allow_redirects' => [
                 'max'       => 10,    // Maximum number of redirects
@@ -223,6 +232,11 @@ class Dom
         } else {
             // fallback with an empty DOM representation
             $content = self::$emptyHtml;
+        }
+
+        // set the raw HTML for the given URL in cache, if the cache is enabled
+        if ($cache) {
+            $cache->add($url, $content);
         }
 
         return $content;

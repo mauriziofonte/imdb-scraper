@@ -620,6 +620,13 @@ class Parser
         return [];
     }
 
+    /**
+     * Get the Credits of the movie or TV show
+     *
+     * @param HtmlDomParser $dom
+     *
+     * @return array
+     */
     public function getCredits(HtmlDomParser $dom) : array
     {
         $sections = $dom->findMultiOrFalse('.ipc-page-section.ipc-page-section--base');
@@ -637,7 +644,6 @@ class Parser
             }
             
             $role = self::clean($collectionElement->innerText());
-            $roleIndex = hash('crc32', $role);
 
             if (str_ireplace([
                 'contribute',
@@ -653,11 +659,6 @@ class Parser
             ], '', $role) !== $role) {
                 // If the category is a generic "contribute to this page" or "more from this title", skip it
                 continue;
-            }
-            
-            // initialize segment array
-            if (!array_key_exists($roleIndex, $credits)) {
-                $credits[$roleIndex] = [];
             }
 
             $entries = $section->findMultiOrFalse('li.ipc-metadata-list-summary-item');
@@ -722,7 +723,7 @@ class Parser
                     ]
                 ];
                 
-                $credits[$roleIndex][] = $credit;
+                $credits[] = $credit;
             }
         }
 

@@ -530,9 +530,9 @@ class Dataset implements ArrayAccess, Countable, IteratorAggregate, JsonSerializ
     /**
      * Converts the collection to a value suitable for JSON serialization.
      *
-     * @return mixed
+     * @return array
      */
-    public function jsonSerialize() : mixed
+    public function jsonSerialize() : array
     {
         return $this->toArray();
     }
