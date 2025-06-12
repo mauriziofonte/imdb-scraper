@@ -9,7 +9,6 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\MessageFormatter;
 use GuzzleHttp\Middleware;
 use Monolog\Logger;
-use Monolog\Level;
 use Monolog\Handler\StreamHandler;
 
 /**
@@ -186,7 +185,7 @@ class Dom
 
             // Create a Monolog logger instance
             $logger = new Logger('http_logger');
-            $logger->pushHandler(new StreamHandler($options['guzzleLogFile'], Level::Debug));
+            $logger->pushHandler(new StreamHandler($options['guzzleLogFile'], Logger::DEBUG));
 
             // Set up Guzzle handler stack with logging middleware
             $stack = HandlerStack::create();
