@@ -439,11 +439,13 @@ class Parser
         $heroContainer = self::getHeroContainer($dom);
         if ($heroContainer) {
             $interestsContainer = $heroContainer->findOneOrFalse('div[data-testid="interests"]');
-            $genres = $interestsContainer->find('a.ipc-chip span');
-            if (count((array) $genres) > 0) {
-                return array_map(function ($genre) {
-                    return self::clean($genre->innerText());
-                }, (array) $genres);
+            if ($interestsContainer) {
+                $genres = $interestsContainer->find('a.ipc-chip span');
+                if (count((array) $genres) > 0) {
+                    return array_map(function ($genre) {
+                        return self::clean($genre->innerText());
+                    }, (array) $genres);
+                }
             }
         }
 
